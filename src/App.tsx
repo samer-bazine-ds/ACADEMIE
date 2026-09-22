@@ -1,5 +1,82 @@
-import {Navigate,Route,Routes} from 'react-router-dom';
-import Layout from './components/Layout';
-import Login from './pages/Login';import Dashboard from './pages/Dashboard';import Levels from './pages/Levels';import Teachers from './pages/Teachers';import Students from './pages/Students';import Payments from './pages/Payments';import Group from './pages/Group';import SettingsPage from './pages/Settings';import ParentPortal from './pages/ParentPortal';import ResetPassword from './pages/ResetPassword';
-const Shell=({children}:{children:React.ReactNode})=><Layout>{children}</Layout>;
-export default function App(){return <Routes><Route path="/" element={<Login/>}/><Route path="/reset-password" element={<ResetPassword/>}/><Route path="/app" element={<Shell><Dashboard/></Shell>}/><Route path="/app/levels" element={<Shell><Levels/></Shell>}/><Route path="/app/teachers" element={<Shell><Teachers/></Shell>}/><Route path="/app/students" element={<Shell><Students/></Shell>}/><Route path="/app/payments" element={<Shell><Payments/></Shell>}/><Route path="/app/group/:id" element={<Shell><Group/></Shell>}/><Route path="/app/settings" element={<Shell><SettingsPage/></Shell>}/><Route path="/parent" element={<ParentPortal/>}/><Route path="*" element={<Navigate to="/"/>}/></Routes>}
+import { Navigate, Route, Routes } from "react-router-dom";
+import Layout from "./components/Layout";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import Levels from "./pages/Levels";
+import Teachers from "./pages/Teachers";
+import Students from "./pages/Students";
+import Payments from "./pages/Payments";
+import Group from "./pages/Group";
+import SettingsPage from "./pages/Settings";
+import ParentPortal from "./pages/ParentPortal";
+import ResetPassword from "./pages/ResetPassword";
+import RequireSchool from "./components/RequireSchool";
+const Shell = ({ children }: { children: React.ReactNode }) => (
+  <RequireSchool><Layout>{children}</Layout></RequireSchool>
+);
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route
+        path="/app"
+        element={
+          <Shell>
+            <Dashboard />
+          </Shell>
+        }
+      />
+      <Route
+        path="/app/levels"
+        element={
+          <Shell>
+            <Levels />
+          </Shell>
+        }
+      />
+      <Route
+        path="/app/teachers"
+        element={
+          <Shell>
+            <Teachers />
+          </Shell>
+        }
+      />
+      <Route
+        path="/app/students"
+        element={
+          <Shell>
+            <Students />
+          </Shell>
+        }
+      />
+      <Route
+        path="/app/payments"
+        element={
+          <Shell>
+            <Payments />
+          </Shell>
+        }
+      />
+      <Route
+        path="/app/group/:id"
+        element={
+          <Shell>
+            <Group />
+          </Shell>
+        }
+      />
+      <Route
+        path="/app/settings"
+        element={
+          <Shell>
+            <SettingsPage />
+          </Shell>
+        }
+      />
+      <Route path="/parent" element={<ParentPortal />} />
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  );
+}

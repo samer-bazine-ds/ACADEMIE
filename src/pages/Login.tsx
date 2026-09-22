@@ -166,13 +166,7 @@ export default function Login() {
               label={role==='parent'?'Identifiant parent':'Adresse e-mail'}
               type={role==='parent'?'text':'email'}
               required
-              defaultValue={
-                signup
-                  ? ""
-                  : role === "school"
-                    ? "admin@eldjazair.dz"
-                    : ""
-              }
+              defaultValue=""
             />
             {role==='parent'&&<p className="-mt-2 text-xs text-stone-400">Exemple : EL.BENALI.001 · Mot de passe : date de naissance (JJ/MM/AAAA ou AAAA-MM-JJ)</p>}
             {error&&<p className="rounded-xl bg-red-50 p-3 text-sm font-medium text-red-600">{error}</p>}
@@ -182,7 +176,7 @@ export default function Login() {
               label="Mot de passe"
               type="password"
               required
-              defaultValue={signup ? "" : "demo1234"}
+              defaultValue=""
             />
             {!signup && (
               <div className="flex justify-end">
