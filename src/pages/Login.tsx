@@ -16,7 +16,7 @@ export default function Login() {
     if (!email) { setError("Entrez d'abord votre adresse e-mail."); return; }
     setLoading(true);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}reset-password`,
     });
     setLoading(false);
     if (resetError) { setError(resetError.message); return; }
