@@ -1,0 +1,47 @@
+create extension if not exists pgcrypto;
+create type public.user_role as enum ('school','parent');
+create type public.school_cycle as enum ('primary','middle','secondary');
+create type public.attendance_status as enum ('present','absent','late','excused');
+create table public.schools(id uuid primary key default gen_random_uuid(),name text not null,address text,phone text,email text,logo_url text,owner_user_id uuid not null references auth.users,created_at timestamptz default now());
+create table public.parents(id uuid primary key default gen_random_uuid(),school_id uuid not null references schools on delete cascade,full_name text not null,phone text,email text,user_id uuid unique references auth.users);
+create table public.profiles(id uuid primary key references auth.users on delete cascade,role user_role not null,school_id uuid not null references schools on delete cascade,parent_id uuid references parents on delete set null);
+create table public.levels(id uuid primary key default gen_random_uuid(),school_id uuid not null references schools on delete cascade,name text not null,cycle school_cycle not null,"order" int not null);
+create table public.modules(id uuid primary key default gen_random_uuid(),level_id uuid not null references levels on delete cascade,name text not null);
+create table public.teachers(id uuid primary key default gen_random_uuid(),school_id uuid not null references schools on delete cascade,full_name text not null,phone text,email text,photo_url text);
+create table public.groups(id uuid primary key default gen_random_uuid(),module_id uuid not null references modules on delete cascade,teacher_id uuid references teachers on delete set null,name text not null,price_per_session numeric(12,2) not null check(price_per_session>=0),schedule jsonb default '[]');
+create table public.students(id uuid primary key default gen_random_uuid(),school_id uuid not null references schools on delete cascade,first_name text not null,last_name text not null,birth_date date,level_id uuid references levels on delete set null,parent_id uuid references parents on delete set null,photo_url text);
+create table public.enrollments(id uuid primary key default gen_random_uuid(),student_id uuid not null references students on delete cascade,group_id uuid not null references groups on delete cascade,start_date date default current_date,active boolean default true,unique(student_id,group_id));
+create table public.sessions(id uuid primary key default gen_random_uuid(),group_id uuid not null references groups on delete cascade,date date not null,topic text);
+create table public.attendance(id uuid primary key default gen_random_uuid(),session_id uuid not null references sessions on delete cascade,student_id uuid not null references students on delete cascade,status attendance_status not null,unique(session_id,student_id));
+create table public.payments(id uuid primary key default gen_random_uuid(),student_id uuid not null references students on delete cascade,group_id uuid not null references groups on delete cascade,month date not null,amount numeric(12,2) not null check(amount>0),paid_at timestamptz default now(),method text,note text);
+
+create or replace function public.seed_school_levels() returns trigger language plpgsql security definer set search_path=public as $$ begin
+ insert into levels(school_id,name,cycle,"order") select new.id,x.name,x.cycle::school_cycle,x.ord from (values ('1AP','primary',1),('2AP','primary',2),('3AP','primary',3),('4AP','primary',4),('5AP','primary',5),('1AM','middle',6),('2AM','middle',7),('3AM','middle',8),('4AM','middle',9),('1AS','secondary',10),('2AS','secondary',11),('3AS','secondary',12)) x(name,cycle,ord); return new; end $$;
+create trigger on_school_created after insert on schools for each row execute function seed_school_levels();
+create or replace function public.my_school() returns uuid language sql stable security definer set search_path=public as $$select school_id from profiles where id=auth.uid()$$;
+create or replace function public.my_parent() returns uuid language sql stable security definer set search_path=public as $$select parent_id from profiles where id=auth.uid() and role='parent'$$;
+create or replace function public.is_school_admin() returns boolean language sql stable security definer set search_path=public as $$select exists(select 1 from profiles where id=auth.uid() and role='school')$$;
+
+alter table schools enable row level security; alter table profiles enable row level security; alter table parents enable row level security; alter table levels enable row level security; alter table modules enable row level security; alter table teachers enable row level security; alter table groups enable row level security; alter table students enable row level security; alter table enrollments enable row level security; alter table sessions enable row level security; alter table attendance enable row level security; alter table payments enable row level security;
+create policy school_access on schools for all using(id=my_school()) with check(id=my_school());
+create policy own_profile on profiles for select using(id=auth.uid());
+create policy admin_parents on parents for all using(school_id=my_school() and is_school_admin()) with check(school_id=my_school() and is_school_admin());
+create policy parent_self on parents for select using(id=my_parent());
+create policy admin_levels on levels for all using(school_id=my_school() and is_school_admin()) with check(school_id=my_school() and is_school_admin());
+create policy parent_levels on levels for select using(school_id=my_school());
+create policy admin_teachers on teachers for all using(school_id=my_school() and is_school_admin()) with check(school_id=my_school() and is_school_admin());
+create policy parent_teachers on teachers for select using(school_id=my_school());
+create policy admin_students on students for all using(school_id=my_school() and is_school_admin()) with check(school_id=my_school() and is_school_admin());
+create policy parent_students on students for select using(parent_id=my_parent());
+create policy modules_access on modules for select using(exists(select 1 from levels l where l.id=level_id and l.school_id=my_school()));
+create policy modules_admin on modules for all using(is_school_admin() and exists(select 1 from levels l where l.id=level_id and l.school_id=my_school())) with check(is_school_admin() and exists(select 1 from levels l where l.id=level_id and l.school_id=my_school()));
+create policy groups_access on groups for select using(exists(select 1 from modules m join levels l on l.id=m.level_id where m.id=module_id and l.school_id=my_school()));
+create policy groups_admin on groups for all using(is_school_admin() and exists(select 1 from modules m join levels l on l.id=m.level_id where m.id=module_id and l.school_id=my_school())) with check(is_school_admin() and exists(select 1 from modules m join levels l on l.id=m.level_id where m.id=module_id and l.school_id=my_school()));
+create policy enrollments_read on enrollments for select using(exists(select 1 from students s where s.id=student_id and s.school_id=my_school() and (is_school_admin() or s.parent_id=my_parent())));
+create policy enrollments_admin on enrollments for all using(is_school_admin() and exists(select 1 from students s where s.id=student_id and s.school_id=my_school())) with check(is_school_admin() and exists(select 1 from students s where s.id=student_id and s.school_id=my_school()));
+create policy sessions_read on sessions for select using(exists(select 1 from groups g join modules m on m.id=g.module_id join levels l on l.id=m.level_id where g.id=group_id and l.school_id=my_school()) and (is_school_admin() or exists(select 1 from enrollments e join students s on s.id=e.student_id where e.group_id=sessions.group_id and s.parent_id=my_parent())));
+create policy sessions_admin on sessions for all using(is_school_admin() and exists(select 1 from groups g join modules m on m.id=g.module_id join levels l on l.id=m.level_id where g.id=group_id and l.school_id=my_school())) with check(is_school_admin() and exists(select 1 from groups g join modules m on m.id=g.module_id join levels l on l.id=m.level_id where g.id=group_id and l.school_id=my_school()));
+create policy attendance_read on attendance for select using(exists(select 1 from students s where s.id=student_id and s.school_id=my_school() and (is_school_admin() or s.parent_id=my_parent())));
+create policy attendance_admin on attendance for all using(is_school_admin() and exists(select 1 from students s where s.id=student_id and s.school_id=my_school())) with check(is_school_admin() and exists(select 1 from students s where s.id=student_id and s.school_id=my_school()));
+create policy payments_read on payments for select using(exists(select 1 from students s where s.id=student_id and s.school_id=my_school() and (is_school_admin() or s.parent_id=my_parent())));
+create policy payments_admin on payments for all using(is_school_admin() and exists(select 1 from students s where s.id=student_id and s.school_id=my_school())) with check(is_school_admin() and exists(select 1 from students s where s.id=student_id and s.school_id=my_school()));
