@@ -1,0 +1,10 @@
+drop index if exists public.parents_school_username_key;
+create unique index if not exists parents_username_key on public.parents(upper(username));
+drop policy if exists parent_levels on public.levels;
+create policy parent_levels on public.levels for select using(exists(select 1 from students s where s.level_id=levels.id and s.parent_id=my_parent()));
+drop policy if exists parent_teachers on public.teachers;
+create policy parent_teachers on public.teachers for select using(exists(select 1 from groups g join enrollments e on e.group_id=g.id join students s on s.id=e.student_id where g.teacher_id=teachers.id and e.active and s.parent_id=my_parent()));
+drop policy if exists modules_access on public.modules;
+create policy modules_access on public.modules for select using((is_school_admin() and exists(select 1 from levels l where l.id=level_id and l.school_id=my_school())) or exists(select 1 from groups g join enrollments e on e.group_id=g.id join students s on s.id=e.student_id where g.module_id=modules.id and e.active and s.parent_id=my_parent()));
+drop policy if exists groups_access on public.groups;
+create policy groups_access on public.groups for select using((is_school_admin() and exists(select 1 from modules m join levels l on l.id=m.level_id where m.id=module_id and l.school_id=my_school())) or exists(select 1 from enrollments e join students s on s.id=e.student_id where e.group_id=groups.id and e.active and s.parent_id=my_parent()));

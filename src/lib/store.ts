@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
 export type Cycle = "Primaire" | "Moyen" | "Secondaire";
 export type SchoolLevel = { id: string; name: string; cycle: Cycle };
 export type Module = { id: string; levelId: string; name: string };
@@ -82,6 +81,8 @@ type State = {
   currentParentId: string | null;
   activeSchoolEmail: string | null;
   schoolName: string;
+  loading: boolean;
+  syncError: string | null;
   addLevel: (n: string, c: Cycle) => void;
   addModule: (l: string, n: string) => void;
   addTeacher: (m: string, n: string, p: string, e: string) => void;
@@ -116,9 +117,8 @@ const dayIndex: Record<string, number> = {
   Samedi: 6,
 };
 export const useAcademy = create<State>()(
-  persist(
     (set) => ({
-      levels,
+      levels: [],
       modules: [],
       teachers: [],
       groups: [],
@@ -130,6 +130,8 @@ export const useAcademy = create<State>()(
       currentParentId: null,
       activeSchoolEmail: null,
       schoolName: "Mon école",
+      loading: false,
+      syncError: null,
       addLevel: (name, cycle) =>
         set((s) => ({ levels: [...s.levels, { id: id(), name, cycle }] })),
       addModule: (levelId, name) =>
@@ -151,15 +153,9 @@ export const useAcademy = create<State>()(
       },
       loginParent:(username,password)=>{let found=false;set(s=>{const enteredDate=password.trim().replace(/\D/g,''),account=(s.parentAccounts||[]).find(a=>a.username.toUpperCase()===username.trim().toUpperCase()&&a.password.replace(/\D/g,'')===enteredDate&&enteredDate.length===8);found=!!account;return account?{currentParentId:account.id}:{}});return found},
       logoutParent:()=>set({currentParentId:null}),
-      switchSchool:(email,name)=>set(s=>{
+      switchSchool:(email,name)=>set(()=>{
         const normalized=email.trim().toLowerCase();
-        if(!s.activeSchoolEmail){return {activeSchoolEmail:normalized,schoolName:name||s.schoolName}}
-        const snapshot={levels:s.levels,modules:s.modules,teachers:s.teachers,groups:s.groups,students:s.students,sessions:s.sessions||[],attendance:s.attendance||[],payments:s.payments||[],parentAccounts:s.parentAccounts||[],schoolName:s.schoolName};
-        localStorage.setItem(`academie-workspace:${s.activeSchoolEmail}`,JSON.stringify(snapshot));
-        if(s.activeSchoolEmail===normalized)return name?{schoolName:name}:{};
-        const stored=localStorage.getItem(`academie-workspace:${normalized}`);
-        if(stored){try{return {...JSON.parse(stored),activeSchoolEmail:normalized,currentParentId:null}}catch{/* start clean */}}
-        return {levels,modules:[],teachers:[],groups:[],students:[],sessions:[],attendance:[],payments:[],parentAccounts:[],currentParentId:null,activeSchoolEmail:normalized,schoolName:name||'Mon école'};
+        return {levels:[],modules:[],teachers:[],groups:[],students:[],sessions:[],attendance:[],payments:[],parentAccounts:[],currentParentId:null,activeSchoolEmail:normalized,schoolName:name||'Mon école'};
       }),
       addSession: (groupId, date, topic) =>
         set((s) => ({
@@ -295,6 +291,4 @@ export const useAcademy = create<State>()(
         })),
       registerSchool: (schoolName) => set({ schoolName }),
     }),
-    { name: "academie-groups-v3" },
-  ),
 );

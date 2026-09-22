@@ -2,12 +2,11 @@ import { FormEvent, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, BookOpen, Check, Languages, School } from "lucide-react";
 import { Button, Field } from "../components/ui";
-import { useAcademy } from "../lib/store";
 import { supabase } from "../lib/supabase";
+import { hydrateAcademy } from "../lib/sync";
 export default function Login() {
   const formRef = useRef<HTMLFormElement>(null);
-  const nav = useNavigate(),
-    loginParent = useAcademy((s) => s.loginParent),switchSchool=useAcademy(s=>s.switchSchool);
+  const nav = useNavigate();
   const [role, setRole] = useState<"school" | "parent">("school"),
     [signup, setSignup] = useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[loading,setLoading]=useState(false);
   const resetPassword = async () => {
@@ -28,7 +27,14 @@ export default function Login() {
     const f = new FormData(e.currentTarget);
     const email = String(f.get('email')).trim().toLowerCase();
     const password = String(f.get('password'));
-    if(role==='parent'){if(!loginParent(email,password)){setError('Identifiant ou date de naissance incorrecte.');return;}nav('/parent');return;}
+    if(role==='parent'){
+      setLoading(true);
+      const {data:loginEmail,error:lookupError}=await supabase.rpc('parent_login_email',{parent_username:email});
+      if(lookupError||!loginEmail){setLoading(false);setError('Identifiant ou date de naissance incorrecte.');return;}
+      const {error:parentError}=await supabase.auth.signInWithPassword({email:loginEmail,password});
+      if(parentError){setLoading(false);setError('Identifiant ou date de naissance incorrecte.');return;}
+      await hydrateAcademy();setLoading(false);nav('/parent');return;
+    }
     setLoading(true);
     try {
       if (signup) {
@@ -45,20 +51,19 @@ export default function Login() {
           setError('Compte créé. Vérifiez votre e-mail, puis connectez-vous.');
           return;
         }
-        switchSchool(email, schoolName);
+        await hydrateAcademy();
       } else {
         const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
         if (authError) throw authError;
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('school_id, role, schools(name)')
+          .select('school_id, role')
           .single();
         if (profileError || profile?.role !== 'school') {
           await supabase.auth.signOut();
           throw new Error("Ce compte n'est pas un compte école.");
         }
-        const school = Array.isArray(profile.schools) ? profile.schools[0] : profile.schools;
-        switchSchool(email, (school as {name?: string} | null)?.name);
+        await hydrateAcademy();
       }
       nav('/app');
     } catch (caught) {

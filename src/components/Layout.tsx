@@ -30,7 +30,9 @@ export default function Layout({ children }: { children: ReactNode }) {
     [query, setQuery] = useState("");
   const location = useLocation(),
     navigate = useNavigate(),
-    schoolName = useAcademy((s) => s.schoolName);
+    schoolName = useAcademy((s) => s.schoolName),
+    syncError = useAcademy((s) => s.syncError),
+    loading = useAcademy((s) => s.loading);
   const label = location.pathname.startsWith("/app/group/")
     ? "Groupe"
     : nav.find((x) => x[0] === location.pathname)?.[1] || "Administration";
@@ -124,7 +126,11 @@ export default function Layout({ children }: { children: ReactNode }) {
             <span className="hidden sm:inline">Rechercher…</span>
           </button>
         </header>
-        <main className="p-4 pb-28 sm:p-6 lg:p-8 lg:pb-8">{children}</main>
+        <main className="p-4 pb-28 sm:p-6 lg:p-8 lg:pb-8">
+          {syncError&&<div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">Synchronisation impossible : {syncError}</div>}
+          {loading&&<div className="mb-4 rounded-xl bg-brand-50 p-3 text-sm font-medium text-brand-700">Chargement des données sécurisées…</div>}
+          {children}
+        </main>
       </div>
       <nav className="fixed inset-x-2 bottom-2 z-30 grid grid-cols-5 rounded-2xl border border-black/10 bg-white/95 p-1.5 shadow-2xl backdrop-blur-xl lg:hidden">
         {nav.slice(0, 5).map(([to, name, Icon]) => (

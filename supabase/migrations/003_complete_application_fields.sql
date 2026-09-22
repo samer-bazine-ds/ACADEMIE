@@ -1,0 +1,15 @@
+alter table public.parents add column if not exists username text;
+create unique index if not exists parents_school_username_key on public.parents(school_id, upper(username));
+alter table public.teachers add column if not exists module_id uuid references public.modules on delete set null;
+alter table public.students add column if not exists status text not null default 'actif' check (status in ('actif','inactif'));
+alter table public.sessions add column if not exists automatic boolean not null default false;
+alter table public.sessions add column if not exists moved_from date;
+alter table public.payments add column if not exists receipt_no text;
+create index if not exists modules_level_id_idx on public.modules(level_id);
+create index if not exists groups_teacher_id_idx on public.groups(teacher_id);
+create index if not exists students_school_id_idx on public.students(school_id);
+create index if not exists sessions_group_id_idx on public.sessions(group_id);
+create index if not exists attendance_student_id_idx on public.attendance(student_id);
+create index if not exists payments_student_id_idx on public.payments(student_id);
+create or replace function public.parent_login_email(parent_username text) returns text language sql stable security definer set search_path=public as $$select p.email from parents p where upper(p.username)=upper(trim(parent_username)) limit 1$$;
+grant execute on function public.parent_login_email(text) to anon, authenticated;

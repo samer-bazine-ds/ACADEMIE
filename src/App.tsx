@@ -11,6 +11,7 @@ import SettingsPage from "./pages/Settings";
 import ParentPortal from "./pages/ParentPortal";
 import ResetPassword from "./pages/ResetPassword";
 import RequireSchool from "./components/RequireSchool";
+import RequireParent from "./components/RequireParent";
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <RequireSchool><Layout>{children}</Layout></RequireSchool>
 );
@@ -75,7 +76,7 @@ export default function App() {
           </Shell>
         }
       />
-      <Route path="/parent" element={<ParentPortal />} />
+      <Route path="/parent" element={<RequireParent><ParentPortal /></RequireParent>} />
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
