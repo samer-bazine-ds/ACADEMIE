@@ -5,7 +5,7 @@ let last={levels:[] as string[],modules:[] as string[],teachers:[] as string[],g
 const snapshot=()=>{const s=useAcademy.getState();return{levels:s.levels.map(x=>x.id),modules:s.modules.map(x=>x.id),teachers:s.teachers.map(x=>x.id),groups:s.groups.map(x=>x.id),students:s.students.map(x=>x.id),sessions:s.sessions.map(x=>x.id),payments:s.payments.map(x=>x.id),attendance:s.attendance.map(x=>`${x.sessionId}:${x.studentId}`)}};
 const fromCycle=(v:string)=>v==='primary'?'Primaire':v==='middle'?'Moyen':'Secondaire';
 const toCycle=(v:string)=>v==='Primaire'?'primary':v==='Moyen'?'middle':'secondary';
-const fail=(e:unknown)=>useAcademy.setState({syncError:e instanceof Error?e.message:String(e),loading:false});
+const fail=(e:unknown)=>{const value=e as {message?:string;details?:string;hint?:string;code?:string};const message=e instanceof Error?e.message:value?.message||value?.details||value?.hint||value?.code||'Erreur de synchronisation inconnue';useAcademy.setState({syncError:message,loading:false})};
 export async function hydrateAcademy(){hydrating=true;useAcademy.setState({loading:true,syncError:null});try{
  const {data:{user}}=await supabase.auth.getUser();if(!user)throw new Error('Session expirée.');
  const {data:p,error:pe}=await supabase.from('profiles').select('role,school_id,parent_id').eq('id',user.id).single();if(pe)throw pe;schoolId=p.school_id;

@@ -1,0 +1,17 @@
+create or replace function public.parent_has_level(target uuid) returns boolean language sql stable security definer set search_path=public as $$select exists(select 1 from students where level_id=target and parent_id=my_parent())$$;
+create or replace function public.parent_has_group(target uuid) returns boolean language sql stable security definer set search_path=public as $$select exists(select 1 from enrollments e join students s on s.id=e.student_id where e.group_id=target and e.active and s.parent_id=my_parent())$$;
+create or replace function public.parent_has_module(target uuid) returns boolean language sql stable security definer set search_path=public as $$select exists(select 1 from groups g join enrollments e on e.group_id=g.id join students s on s.id=e.student_id where g.module_id=target and e.active and s.parent_id=my_parent())$$;
+create or replace function public.parent_has_teacher(target uuid) returns boolean language sql stable security definer set search_path=public as $$select exists(select 1 from groups g join enrollments e on e.group_id=g.id join students s on s.id=e.student_id where g.teacher_id=target and e.active and s.parent_id=my_parent())$$;
+revoke all on function public.parent_has_level(uuid) from public;
+revoke all on function public.parent_has_group(uuid) from public;
+revoke all on function public.parent_has_module(uuid) from public;
+revoke all on function public.parent_has_teacher(uuid) from public;
+grant execute on function public.parent_has_level(uuid),public.parent_has_group(uuid),public.parent_has_module(uuid),public.parent_has_teacher(uuid) to authenticated;
+drop policy if exists parent_levels on public.levels;
+create policy parent_levels on public.levels for select using(parent_has_level(id));
+drop policy if exists parent_teachers on public.teachers;
+create policy parent_teachers on public.teachers for select using(parent_has_teacher(id));
+drop policy if exists modules_access on public.modules;
+create policy modules_access on public.modules for select using(parent_has_module(id));
+drop policy if exists groups_access on public.groups;
+create policy groups_access on public.groups for select using(parent_has_group(id));
