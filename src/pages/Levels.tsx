@@ -1,28 +1,524 @@
-import {FormEvent,useState} from 'react';
-import {useNavigate} from 'react-router-dom';
-import {ArrowLeft,BookOpen,ChevronRight,Pencil,Plus,UsersRound} from 'lucide-react';
-import {Avatar,Badge,Button,Card,Field,Modal,Select} from '../components/ui';
-import {Cycle,useAcademy} from '../lib/store';
-type Kind='level'|'module'|'teacher'|'group'|'student';
-export default function Levels(){
- const s=useAcademy();const [cycle,setCycle]=useState('Tous');const [levelId,setLevel]=useState<string>();const [moduleId,setModule]=useState<string>();const [teacherId,setTeacher]=useState<string>();const [groupId,setGroup]=useState<string>();const [adding,setAdding]=useState<Kind|null>(null);const [editing,setEditing]=useState<{kind:Kind,id:string}|null>(null);
- const level=s.levels.find(x=>x.id===levelId),mod=s.modules.find(x=>x.id===moduleId),teacher=s.teachers.find(x=>x.id===teacherId),group=s.groups.find(x=>x.id===groupId);
- const back=()=>{if(group)setGroup(undefined);else if(teacher)setTeacher(undefined);else if(mod)setModule(undefined);else setLevel(undefined)};
- const add=(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();const f=new FormData(e.currentTarget);if(adding==='level')s.addLevel(String(f.get('name')),String(f.get('cycle')) as Cycle);if(adding==='module'&&level)s.addModule(level.id,String(f.get('name')));if(adding==='teacher'&&mod)s.addTeacher(mod.id,String(f.get('name')),String(f.get('phone')),String(f.get('email')));if(adding==='group'&&teacher)s.addGroup(teacher.id,String(f.get('name')),`${f.get('day')} ${f.get('time')}`,Number(f.get('price')));if(adding==='student'&&group&&teacher&&level){const account=s.addStudent({groupId:group.id,teacherId:teacher.id,levelId:level.id,name:String(f.get('name')),parent:String(f.get('parent')),phone:String(f.get('phone')),birthDate:String(f.get('birthDate'))});window.alert(`Compte parent créé\nIdentifiant : ${account.username}\nMot de passe : ${account.password}`)}setAdding(null)};
- const save=(e:FormEvent<HTMLFormElement>)=>{e.preventDefault();if(!editing)return;const f=new FormData(e.currentTarget),v={name:String(f.get('name'))};if(editing.kind==='level')s.updateLevel(editing.id,{...v,cycle:String(f.get('cycle')) as Cycle});if(editing.kind==='module')s.updateModule(editing.id,v);if(editing.kind==='teacher')s.updateTeacher(editing.id,{...v,phone:String(f.get('phone')),email:String(f.get('email'))});if(editing.kind==='group')s.updateGroup(editing.id,{...v,schedule:`${f.get('day')} ${f.get('time')}`,price:Number(f.get('price'))});if(editing.kind==='student')s.updateStudent(editing.id,{...v,parent:String(f.get('parent')),phone:String(f.get('phone')),status:String(f.get('status')) as 'actif'|'inactif'});setEditing(null)};
- const current=group?{kind:'group' as Kind,id:group.id}:teacher?{kind:'teacher' as Kind,id:teacher.id}:mod?{kind:'module' as Kind,id:mod.id}:level?{kind:'level' as Kind,id:level.id}:null;const next:Kind=group?'student':teacher?'group':mod?'teacher':level?'module':'level';
- return <div className="mx-auto max-w-7xl"><div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div>{level&&<button onClick={back} className="mb-3 flex items-center gap-1 text-sm font-semibold text-brand-700"><ArrowLeft size={16}/>Retour</button>}<h2 className="font-display text-2xl font-bold">{group?.name||teacher?.name||mod?.name||level?.name||'Niveaux scolaires'}</h2><p className="mt-1 text-sm text-stone-500">{group?'Élèves du groupe':teacher?'Groupes de cet enseignant':mod?'Enseignants du module':level?'Modules du niveau':'Structure scolaire algérienne'}</p></div><div className="flex flex-wrap gap-2">{current&&<Button variant="secondary" onClick={()=>setEditing(current)}><Pencil size={16}/>Modifier</Button>}<Button onClick={()=>setAdding(next)}><Plus size={16}/>Ajouter {next==='student'?'un élève':next==='teacher'?'un enseignant':next==='module'?'un module':next==='group'?'un groupe':'un niveau'}</Button></div></div>
- {!level&&<><div className="mb-5 flex gap-2">{['Tous','Primaire','Moyen','Secondaire'].map(x=><button key={x} onClick={()=>setCycle(x)} className={`rounded-xl px-4 py-2 text-sm font-semibold ${cycle===x?'bg-ink text-white':'bg-white'}`}>{x}</button>)}</div><Grid>{s.levels.filter(x=>cycle==='Tous'||x.cycle===cycle).map(x=><Tile key={x.id} title={x.name} detail={`${s.modules.filter(m=>m.levelId===x.id).length} modules`} open={()=>setLevel(x.id)}/>)}</Grid></>}
- {level&&!mod&&<Grid>{s.modules.filter(x=>x.levelId===level.id).map(x=><Tile key={x.id} title={x.name} detail={`${s.teachers.filter(t=>t.moduleId===x.id).length} enseignants`} open={()=>setModule(x.id)}/>)}<Empty show={!s.modules.some(x=>x.levelId===level.id)} text="Aucun module" add={()=>setAdding('module')}/></Grid>}
- {mod&&!teacher&&<Grid>{s.teachers.filter(x=>x.moduleId===mod.id).map(x=><Tile key={x.id} title={x.name} detail={`${s.groups.filter(g=>g.teacherId===x.id).length} groupes`} open={()=>setTeacher(x.id)}/>)}<Empty show={!s.teachers.some(x=>x.moduleId===mod.id)} text="Aucun enseignant" add={()=>setAdding('teacher')}/></Grid>}
- {teacher&&!group&&<Grid>{s.groups.filter(x=>x.teacherId===teacher.id).map(x=><Tile key={x.id} title={x.name} detail={`${x.schedule||'Sans horaire'} · ${x.price} DA · ${s.students.filter(st=>st.groupId===x.id).length} élèves`} open={()=>{s.ensureScheduledSessions(x.id);window.location.assign(`/app/group/${x.id}`)}}/>)}<Empty show={!s.groups.some(x=>x.teacherId===teacher.id)} text="Aucun groupe" add={()=>setAdding('group')}/></Grid>}
- {group&&<Card className="overflow-auto"><table className="w-full min-w-[680px] text-left text-sm"><thead className="bg-stone-50 text-xs uppercase text-stone-400"><tr>{['Élève','Parent','Téléphone','Statut',''].map(x=><th className="px-5 py-3" key={x}>{x}</th>)}</tr></thead><tbody>{s.students.filter(x=>x.groupId===group.id).map(x=><tr className="border-t" key={x.id}><td className="px-5 py-3"><div className="flex items-center gap-3"><Avatar name={x.name} size="sm"/><b>{x.name}</b></div></td><td className="px-5 py-3">{x.parent}</td><td className="px-5 py-3">{x.phone}</td><td className="px-5 py-3"><Badge tone={x.status==='actif'?'green':'gray'}>{x.status}</Badge></td><td className="px-5 py-3"><Button variant="ghost" onClick={()=>setEditing({kind:'student',id:x.id})}><Pencil size={15}/>Modifier</Button></td></tr>)}</tbody></table>{!s.students.some(x=>x.groupId===group.id)&&<div className="p-10 text-center text-stone-400">Aucun élève dans ce groupe.</div>}</Card>}
- <Modal open={!!adding} onClose={()=>setAdding(null)} title="Ajouter"><EntityForm kind={adding} submit={add}/></Modal>
- <Modal open={!!editing} onClose={()=>setEditing(null)} title="Modifier les informations"><EditForm edit={editing} submit={save}/></Modal>
- </div>
+import { FormEvent, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  BookOpen,
+  ChevronRight,
+  Pencil,
+  Plus,
+  UsersRound,
+} from "lucide-react";
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  Field,
+  Modal,
+  Select,
+} from "../components/ui";
+import { Cycle, useAcademy } from "../lib/store";
+type Kind = "level" | "module" | "teacher" | "group" | "student";
+export default function Levels() {
+  const s = useAcademy();
+  const navigate = useNavigate();
+  const [cycle, setCycle] = useState("Tous");
+  const [levelId, setLevel] = useState<string>();
+  const [moduleId, setModule] = useState<string>();
+  const [teacherId, setTeacher] = useState<string>();
+  const [groupId, setGroup] = useState<string>();
+  const [adding, setAdding] = useState<Kind | null>(null);
+  const [editing, setEditing] = useState<{ kind: Kind; id: string } | null>(
+    null,
+  );
+  const level = s.levels.find((x) => x.id === levelId),
+    mod = s.modules.find((x) => x.id === moduleId),
+    teacher = s.teachers.find((x) => x.id === teacherId),
+    group = s.groups.find((x) => x.id === groupId);
+  const back = () => {
+    if (group) setGroup(undefined);
+    else if (teacher) setTeacher(undefined);
+    else if (mod) setModule(undefined);
+    else setLevel(undefined);
+  };
+  const add = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    if (adding === "level")
+      s.addLevel(String(f.get("name")), String(f.get("cycle")) as Cycle);
+    if (adding === "module" && level)
+      s.addModule(level.id, String(f.get("name")));
+    if (adding === "teacher" && mod)
+      s.addTeacher(
+        mod.id,
+        String(f.get("name")),
+        String(f.get("phone")),
+        String(f.get("email")),
+      );
+    if (adding === "group" && teacher)
+      s.addGroup(
+        teacher.id,
+        String(f.get("name")),
+        `${f.get("day")} ${f.get("time")}`,
+        Number(f.get("price")),
+      );
+    if (adding === "student" && group && teacher && level) {
+      const account = s.addStudent({
+        groupId: group.id,
+        teacherId: teacher.id,
+        levelId: level.id,
+        name: String(f.get("name")),
+        parent: String(f.get("parent")),
+        phone: String(f.get("phone")),
+        birthDate: String(f.get("birthDate")),
+      });
+      window.alert(
+        `Compte parent créé\nIdentifiant : ${account.username}\nMot de passe : ${account.password}`,
+      );
+    }
+    setAdding(null);
+  };
+  const save = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editing) return;
+    const f = new FormData(e.currentTarget),
+      v = { name: String(f.get("name")) };
+    if (editing.kind === "level")
+      s.updateLevel(editing.id, {
+        ...v,
+        cycle: String(f.get("cycle")) as Cycle,
+      });
+    if (editing.kind === "module") s.updateModule(editing.id, v);
+    if (editing.kind === "teacher")
+      s.updateTeacher(editing.id, {
+        ...v,
+        phone: String(f.get("phone")),
+        email: String(f.get("email")),
+      });
+    if (editing.kind === "group")
+      s.updateGroup(editing.id, {
+        ...v,
+        schedule: `${f.get("day")} ${f.get("time")}`,
+        price: Number(f.get("price")),
+      });
+    if (editing.kind === "student")
+      s.updateStudent(editing.id, {
+        ...v,
+        parent: String(f.get("parent")),
+        phone: String(f.get("phone")),
+        status: String(f.get("status")) as "actif" | "inactif",
+      });
+    setEditing(null);
+  };
+  const current = group
+    ? { kind: "group" as Kind, id: group.id }
+    : teacher
+      ? { kind: "teacher" as Kind, id: teacher.id }
+      : mod
+        ? { kind: "module" as Kind, id: mod.id }
+        : level
+          ? { kind: "level" as Kind, id: level.id }
+          : null;
+  const next: Kind = group
+    ? "student"
+    : teacher
+      ? "group"
+      : mod
+        ? "teacher"
+        : level
+          ? "module"
+          : "level";
+  return (
+    <div className="mx-auto max-w-7xl">
+      <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          {level && (
+            <button
+              onClick={back}
+              className="mb-3 flex items-center gap-1 text-sm font-semibold text-brand-700"
+            >
+              <ArrowLeft size={16} />
+              Retour
+            </button>
+          )}
+          <h2 className="font-display text-2xl font-bold">
+            {group?.name ||
+              teacher?.name ||
+              mod?.name ||
+              level?.name ||
+              "Niveaux scolaires"}
+          </h2>
+          <p className="mt-1 text-sm text-stone-500">
+            {group
+              ? "Élèves du groupe"
+              : teacher
+                ? "Groupes de cet enseignant"
+                : mod
+                  ? "Enseignants du module"
+                  : level
+                    ? "Modules du niveau"
+                    : "Structure scolaire algérienne"}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {current && (
+            <Button variant="secondary" onClick={() => setEditing(current)}>
+              <Pencil size={16} />
+              Modifier
+            </Button>
+          )}
+          <Button onClick={() => setAdding(next)}>
+            <Plus size={16} />
+            Ajouter{" "}
+            {next === "student"
+              ? "un élève"
+              : next === "teacher"
+                ? "un enseignant"
+                : next === "module"
+                  ? "un module"
+                  : next === "group"
+                    ? "un groupe"
+                    : "un niveau"}
+          </Button>
+        </div>
+      </div>
+      {!level && (
+        <>
+          <div className="mb-5 flex gap-2">
+            {["Tous", "Primaire", "Moyen", "Secondaire"].map((x) => (
+              <button
+                key={x}
+                onClick={() => setCycle(x)}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold ${cycle === x ? "bg-ink text-white" : "bg-white"}`}
+              >
+                {x}
+              </button>
+            ))}
+          </div>
+          <Grid>
+            {s.levels
+              .filter((x) => cycle === "Tous" || x.cycle === cycle)
+              .map((x) => (
+                <Tile
+                  key={x.id}
+                  title={x.name}
+                  detail={`${s.modules.filter((m) => m.levelId === x.id).length} modules`}
+                  open={() => setLevel(x.id)}
+                />
+              ))}
+          </Grid>
+        </>
+      )}
+      {level && !mod && (
+        <Grid>
+          {s.modules
+            .filter((x) => x.levelId === level.id)
+            .map((x) => (
+              <Tile
+                key={x.id}
+                title={x.name}
+                detail={`${s.teachers.filter((t) => t.moduleId === x.id).length} enseignants`}
+                open={() => setModule(x.id)}
+              />
+            ))}
+          <Empty
+            show={!s.modules.some((x) => x.levelId === level.id)}
+            text="Aucun module"
+            add={() => setAdding("module")}
+          />
+        </Grid>
+      )}
+      {mod && !teacher && (
+        <Grid>
+          {s.teachers
+            .filter((x) => x.moduleId === mod.id)
+            .map((x) => (
+              <Tile
+                key={x.id}
+                title={x.name}
+                detail={`${s.groups.filter((g) => g.teacherId === x.id).length} groupes`}
+                open={() => setTeacher(x.id)}
+              />
+            ))}
+          <Empty
+            show={!s.teachers.some((x) => x.moduleId === mod.id)}
+            text="Aucun enseignant"
+            add={() => setAdding("teacher")}
+          />
+        </Grid>
+      )}
+      {teacher && !group && (
+        <Grid>
+          {s.groups
+            .filter((x) => x.teacherId === teacher.id)
+            .map((x) => (
+              <Tile
+                key={x.id}
+                title={x.name}
+                detail={`${x.schedule || "Sans horaire"} · ${x.price} DA · ${s.students.filter((st) => st.groupId === x.id).length} élèves`}
+                open={() => {
+                  s.ensureScheduledSessions(x.id);
+                  navigate(`/app/group/${x.id}`);
+                }}
+              />
+            ))}
+          <Empty
+            show={!s.groups.some((x) => x.teacherId === teacher.id)}
+            text="Aucun groupe"
+            add={() => setAdding("group")}
+          />
+        </Grid>
+      )}
+      {group && (
+        <Card className="overflow-auto">
+          <table className="w-full min-w-[680px] text-left text-sm">
+            <thead className="bg-stone-50 text-xs uppercase text-stone-400">
+              <tr>
+                {["Élève", "Parent", "Téléphone", "Statut", ""].map((x) => (
+                  <th className="px-5 py-3" key={x}>
+                    {x}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {s.students
+                .filter((x) => x.groupId === group.id)
+                .map((x) => (
+                  <tr className="border-t" key={x.id}>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={x.name} size="sm" />
+                        <b>{x.name}</b>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3">{x.parent}</td>
+                    <td className="px-5 py-3">{x.phone}</td>
+                    <td className="px-5 py-3">
+                      <Badge tone={x.status === "actif" ? "green" : "gray"}>
+                        {x.status}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-3">
+                      <Button
+                        variant="ghost"
+                        onClick={() =>
+                          setEditing({ kind: "student", id: x.id })
+                        }
+                      >
+                        <Pencil size={15} />
+                        Modifier
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+          {!s.students.some((x) => x.groupId === group.id) && (
+            <div className="p-10 text-center text-stone-400">
+              Aucun élève dans ce groupe.
+            </div>
+          )}
+        </Card>
+      )}
+      <Modal open={!!adding} onClose={() => setAdding(null)} title="Ajouter">
+        <EntityForm kind={adding} submit={add} />
+      </Modal>
+      <Modal
+        open={!!editing}
+        onClose={() => setEditing(null)}
+        title="Modifier les informations"
+      >
+        <EditForm edit={editing} submit={save} />
+      </Modal>
+    </div>
+  );
 }
-function EntityForm({kind,submit}:{kind:Kind|null;submit:(e:FormEvent<HTMLFormElement>)=>void}){return <form onSubmit={submit} className="grid gap-4"><Field name="name" label="Nom" required/>{kind==='level'&&<Select name="cycle" label="Cycle"><option>Primaire</option><option>Moyen</option><option>Secondaire</option></Select>}{kind==='teacher'&&<><Field name="phone" label="Téléphone"/><Field name="email" label="E-mail" type="email"/></>}{kind==='group'&&<><Select name="day" label="Jour hebdomadaire">{['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'].map(x=><option key={x}>{x}</option>)}</Select><Field name="time" label="Heure" type="time" required/><Field name="price" label="Prix par séance (DA)" type="number" min="0" required/></>}{kind==='student'&&<><Field name="birthDate" label="Date de naissance (mot de passe initial)" type="date" required/><Field name="parent" label="Parent" required/><Field name="phone" label="Téléphone" required/></>}<Button type="submit">Enregistrer</Button></form>}
-function EditForm({edit,submit}:{edit:{kind:Kind;id:string}|null;submit:(e:FormEvent<HTMLFormElement>)=>void}){const s=useAcademy();if(!edit)return null;const item:any=edit.kind==='level'?s.levels.find(x=>x.id===edit.id):edit.kind==='module'?s.modules.find(x=>x.id===edit.id):edit.kind==='teacher'?s.teachers.find(x=>x.id===edit.id):edit.kind==='group'?s.groups.find(x=>x.id===edit.id):s.students.find(x=>x.id===edit.id);if(!item)return null;const [day,time]=String(item.schedule||'Lundi 14:00').split(' ');return <form onSubmit={submit} className="grid gap-4"><Field name="name" label="Nom" defaultValue={item.name} required/>{edit.kind==='level'&&<Select name="cycle" label="Cycle" defaultValue={item.cycle}><option>Primaire</option><option>Moyen</option><option>Secondaire</option></Select>}{edit.kind==='teacher'&&<><Field name="phone" label="Téléphone" defaultValue={item.phone}/><Field name="email" label="E-mail" defaultValue={item.email}/></>}{edit.kind==='group'&&<><Select name="day" label="Jour hebdomadaire" defaultValue={day}>{['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'].map(x=><option key={x}>{x}</option>)}</Select><Field name="time" label="Heure" type="time" defaultValue={time}/><Field name="price" label="Prix par séance" type="number" defaultValue={item.price}/></>}{edit.kind==='student'&&<><Field name="parent" label="Parent" defaultValue={item.parent}/><Field name="phone" label="Téléphone" defaultValue={item.phone}/><Select name="status" label="Statut" defaultValue={item.status}><option value="actif">Actif</option><option value="inactif">Inactif</option></Select></>}<Button type="submit">Enregistrer les modifications</Button></form>}
-const Grid=({children}:{children:React.ReactNode})=><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>;
-function Tile({title,detail,open}:{title:string;detail:string;open:()=>void}){return <Card className="p-5"><button className="w-full text-left" onClick={open}><div className="flex justify-between"><span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-700"><BookOpen size={20}/></span><ChevronRight/></div><h3 className="mt-4 font-display text-lg font-bold">{title}</h3><p className="mt-2 text-sm text-stone-500">{detail}</p></button></Card>}
-function Empty({show,text,add}:{show:boolean;text:string;add:()=>void}){return show?<Card className="grid min-h-48 place-items-center border-dashed p-6 text-center"><div><UsersRound className="mx-auto text-stone-300"/><p className="my-3 text-stone-500">{text}</p><Button variant="secondary" onClick={add}><Plus size={16}/>Ajouter</Button></div></Card>:null}
+function EntityForm({
+  kind,
+  submit,
+}: {
+  kind: Kind | null;
+  submit: (e: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form onSubmit={submit} className="grid gap-4">
+      <Field name="name" label="Nom" required />
+      {kind === "level" && (
+        <Select name="cycle" label="Cycle">
+          <option>Primaire</option>
+          <option>Moyen</option>
+          <option>Secondaire</option>
+        </Select>
+      )}
+      {kind === "teacher" && (
+        <>
+          <Field name="phone" label="Téléphone" />
+          <Field name="email" label="E-mail" type="email" />
+        </>
+      )}
+      {kind === "group" && (
+        <>
+          <Select name="day" label="Jour hebdomadaire">
+            {[
+              "Dimanche",
+              "Lundi",
+              "Mardi",
+              "Mercredi",
+              "Jeudi",
+              "Vendredi",
+              "Samedi",
+            ].map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </Select>
+          <Field name="time" label="Heure" type="time" required />
+          <Field
+            name="price"
+            label="Prix par séance (DA)"
+            type="number"
+            min="0"
+            required
+          />
+        </>
+      )}
+      {kind === "student" && (
+        <>
+          <Field
+            name="birthDate"
+            label="Date de naissance (mot de passe initial)"
+            type="date"
+            required
+          />
+          <Field name="parent" label="Parent" required />
+          <Field name="phone" label="Téléphone" required />
+        </>
+      )}
+      <Button type="submit">Enregistrer</Button>
+    </form>
+  );
+}
+function EditForm({
+  edit,
+  submit,
+}: {
+  edit: { kind: Kind; id: string } | null;
+  submit: (e: FormEvent<HTMLFormElement>) => void;
+}) {
+  const s = useAcademy();
+  if (!edit) return null;
+  const item: any =
+    edit.kind === "level"
+      ? s.levels.find((x) => x.id === edit.id)
+      : edit.kind === "module"
+        ? s.modules.find((x) => x.id === edit.id)
+        : edit.kind === "teacher"
+          ? s.teachers.find((x) => x.id === edit.id)
+          : edit.kind === "group"
+            ? s.groups.find((x) => x.id === edit.id)
+            : s.students.find((x) => x.id === edit.id);
+  if (!item) return null;
+  const [day, time] = String(item.schedule || "Lundi 14:00").split(" ");
+  return (
+    <form onSubmit={submit} className="grid gap-4">
+      <Field name="name" label="Nom" defaultValue={item.name} required />
+      {edit.kind === "level" && (
+        <Select name="cycle" label="Cycle" defaultValue={item.cycle}>
+          <option>Primaire</option>
+          <option>Moyen</option>
+          <option>Secondaire</option>
+        </Select>
+      )}
+      {edit.kind === "teacher" && (
+        <>
+          <Field name="phone" label="Téléphone" defaultValue={item.phone} />
+          <Field name="email" label="E-mail" defaultValue={item.email} />
+        </>
+      )}
+      {edit.kind === "group" && (
+        <>
+          <Select name="day" label="Jour hebdomadaire" defaultValue={day}>
+            {[
+              "Dimanche",
+              "Lundi",
+              "Mardi",
+              "Mercredi",
+              "Jeudi",
+              "Vendredi",
+              "Samedi",
+            ].map((x) => (
+              <option key={x}>{x}</option>
+            ))}
+          </Select>
+          <Field name="time" label="Heure" type="time" defaultValue={time} />
+          <Field
+            name="price"
+            label="Prix par séance"
+            type="number"
+            defaultValue={item.price}
+          />
+        </>
+      )}
+      {edit.kind === "student" && (
+        <>
+          <Field name="parent" label="Parent" defaultValue={item.parent} />
+          <Field name="phone" label="Téléphone" defaultValue={item.phone} />
+          <Select name="status" label="Statut" defaultValue={item.status}>
+            <option value="actif">Actif</option>
+            <option value="inactif">Inactif</option>
+          </Select>
+        </>
+      )}
+      <Button type="submit">Enregistrer les modifications</Button>
+    </form>
+  );
+}
+const Grid = ({ children }: { children: React.ReactNode }) => (
+  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+);
+function Tile({
+  title,
+  detail,
+  open,
+}: {
+  title: string;
+  detail: string;
+  open: () => void;
+}) {
+  return (
+    <Card className="p-5">
+      <button className="w-full text-left" onClick={open}>
+        <div className="flex justify-between">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-50 text-brand-700">
+            <BookOpen size={20} />
+          </span>
+          <ChevronRight />
+        </div>
+        <h3 className="mt-4 font-display text-lg font-bold">{title}</h3>
+        <p className="mt-2 text-sm text-stone-500">{detail}</p>
+      </button>
+    </Card>
+  );
+}
+function Empty({
+  show,
+  text,
+  add,
+}: {
+  show: boolean;
+  text: string;
+  add: () => void;
+}) {
+  return show ? (
+    <Card className="grid min-h-48 place-items-center border-dashed p-6 text-center">
+      <div>
+        <UsersRound className="mx-auto text-stone-300" />
+        <p className="my-3 text-stone-500">{text}</p>
+        <Button variant="secondary" onClick={add}>
+          <Plus size={16} />
+          Ajouter
+        </Button>
+      </div>
+    </Card>
+  ) : null;
+}
